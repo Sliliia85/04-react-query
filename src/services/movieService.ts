@@ -18,9 +18,10 @@ const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/';
 
 interface FetchMoviesParams {
   query: string;
+  page: number;
 }
 
-export const fetchMovies = async ({ query }: FetchMoviesParams): Promise<Movie[]> => {
+export const fetchMovies = async ({ query, page }: FetchMoviesParams): Promise<ApiResponse> => {
   if (!TMDB_TOKEN) {
     throw new Error("TMDB token is not set. Please add VITE_TMDB_TOKEN to your .env file.");
   }
@@ -28,6 +29,7 @@ export const fetchMovies = async ({ query }: FetchMoviesParams): Promise<Movie[]
   const config = {
     params: {
       query: query,
+      page: page, 
     },
     headers: {
       Authorization: `Bearer ${TMDB_TOKEN}`,
@@ -36,7 +38,7 @@ export const fetchMovies = async ({ query }: FetchMoviesParams): Promise<Movie[]
 
   try {
     const response = await axios.get<ApiResponse>(`${BASE_URL}/search/movie`, config);
-    return response.data.results;
+    return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw new Error(error.response?.data?.status_message || "Failed to fetch movies.");
@@ -53,3 +55,4 @@ export const getImageUrl = (path: string | null, size: 'w500' | 'original'): str
   }
   return `${IMAGE_BASE_URL}${size}${path}`;
 };
+
