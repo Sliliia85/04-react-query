@@ -1,17 +1,11 @@
-import { useState } from 'react'; // useEffect більше не імпортується
+import { useState, useEffect } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import styles from './App.module.css';
-import { useQuery } from '@tanstack/react-query';
-import ReactPaginate from 'react-paginate';
 
-// import { ReactPaginateProps } from 'react-paginate'; // Цей імпорт більше не потрібен, якщо не використовується явно
 
-// Імпортуємо типи та сервіси
 import type { Movie } from '../../types/movie';
 import { fetchMovies } from '../../services/movieService';
-import type { ApiResponse } from '../../services/movieService'; // Імпортуємо ApiResponse тип
 
-// Імпортуємо компоненти
 import SearchBar from '../SearchBar/SearchBar';
 import MovieGrid from '../MovieGrid/MovieGrid';
 import Loader from '../Loader/Loader';
@@ -19,51 +13,44 @@ import ErrorMessage from '../ErrorMessage/ErrorMessage';
 import MovieModal from '../MovieModal/MovieModal';
 
 export default function App() {
+  const [movies, setMovies] = useState<Movie[]>([]);
   const [query, setQuery] = useState<string>('');
-  const [page, setPage] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-  // Використовуємо useQuery для керування станом запиту
-  // Явно вказано дженерик-типи для useQuery: <ApiResponse, Error>
-  // Деструктуруємо 'error' для використання в ErrorMessage
-  
-  const { data, isLoading, isError} = useQuery<ApiResponse, Error>(
-    ['movies', query, page], // Ключ запиту, залежить від query та page
-     ({ queryKey }: { queryKey: [string, string, number] }) => fetchMovies({ query: queryKey[1] as string, page: queryKey[2] as number }), // Функція, яка виконує запит
-    {
-      enabled: !!query, // Запит виконується лише якщо query не порожній
-      keepPreviousData: true, // Зберігає попередні дані під час переходу між сторінками
-      onSuccess: (data: ApiResponse) => { // Явно типізовано 'data' як ApiResponse
-        if (data.results.length === 0 && query !== '') {
+  useEffect(() => {
+    if (query === '') {
+      return;
+    }
+
+    const getMovies = async () => {
+      setLoading(true);
+      setError(null);
+      setMovies([]);
+      try {
+        const response = await fetchMovies({ query, page: 1 });
+        if (response.results.length === 0) {
           toast.error('No movies found for your request.');
         }
-      },
-      onError: (err: unknown) => {
+        setMovies(response.results);
+      } catch (err: unknown) {
         if (err instanceof Error) {
-          toast.error(err.message);
+          setError(err.message);
         } else {
-          toast.error('An unknown error occurred');
+          setError('An unknown error occurred');
         }
-      },
-    }
-  );
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Отримуємо дані про фільми та загальну кількість сторінок
-  // Використовуємо опціональний ланцюжок для безпечного доступу до data.results та data.total_pages
-  const movies = data?.results || [];
-  const totalPages = data?.total_pages || 0;
-
-  // Обробник зміни сторінки для ReactPaginate
-  const handlePageClick = ({ selected }: { selected: number }) => {
-    setPage(selected + 1);
-  };
+    getMovies();
+  }, [query]);
 
   const handleSearch = (newQuery: string) => {
-    if (newQuery !== query) {
-      setQuery(newQuery);
-      setPage(1); // Скидаємо сторінку на першу при новому пошуку
-    }
-  }
+    setQuery(newQuery);
+  };
 
   const handleMovieSelect = (movie: Movie) => {
     setSelectedMovie(movie);
@@ -79,32 +66,17 @@ export default function App() {
       <SearchBar onSubmit={handleSearch} />
 
       <main className={styles.main}>
-        {isLoading && <Loader />}
-        {isError && <ErrorMessage />} {/* Використовуємо isError для відображення компонента */}
+        {loading && <Loader />}
+        {error && <ErrorMessage />}
 
-        {!isLoading && !isError && movies.length > 0 && (
+        {!loading && !error && movies.length > 0 && (
           <MovieGrid movies={movies} onSelect={handleMovieSelect} />
         )}
-
-        {/* Пагінація рендериться, якщо є більше 1 сторінки та не завантажуємо/немає помилки */}
-        {!isLoading && !isError && totalPages > 1 && (
-          <ReactPaginate
-            pageCount={totalPages} // totalPages вже має тип number
-            pageRangeDisplayed={5}
-            marginPagesDisplayed={1}
-            onPageChange={handlePageClick}
-            forcePage={page - 1} // Встановлює активну сторінку (0-based)
-            containerClassName={styles.pagination}
-            activeClassName={styles.active}
-            nextLabel="→"
-            previousLabel="←"
-          />
-        )}
       </main>
-      
+
       {selectedMovie && (
         <MovieModal movie={selectedMovie} onClose={handleCloseModal} />
       )}
     </div>
   );
-}
+};
